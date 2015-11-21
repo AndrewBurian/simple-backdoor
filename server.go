@@ -2,15 +2,16 @@ package main
 
 import (
 	"fmt"
+	_ "net"
+
 	"github.com/google/gopacket"
 	"github.com/google/gopacket/layers"
 	"github.com/google/gopacket/pcap"
-	_ "net"
 )
 
 func main() {
 	fmt.Println("Hello Go!")
-	listenForKnocks("wlp3s0")
+	listenForKnocks("any")
 }
 
 func listenForKnocks(ifaceName string) {
@@ -66,6 +67,7 @@ func listenForKnocks(ifaceName string) {
 		}
 
 		ipStr := ipv4Layer.SrcIP.String()
+		print("got pkt")
 		addKnock(clients, ipStr, udpLayer.DstPort)
 
 		if checkKnocks(clients, ipStr) {
