@@ -20,15 +20,20 @@ func serverWorker(clientIp net.IP) {
 	for _ = range ticker.C {
 
 		//read from the response buffer
-		request, err := http.NewRequest("GET", clientIp.String(), nil)
+		request, err := http.NewRequest("GET", "http://"+clientIp.String()+":8000", nil)
 		if err != nil {
 			panic(err)
 		}
 
-		//create cookie
-		resultStr, ok := <-results
+		request.Close = true
 
-		if ok {
+		select {
+		//create cookie
+		case resultStr, ok := <-results:
+
+			if !ok {
+				return
+			}
 			var myCookie http.Cookie
 			myCookie.Name = "UUID"
 			myCookie.Value = resultStr
@@ -39,6 +44,8 @@ func serverWorker(clientIp net.IP) {
 			//encode data into a response cookie
 
 			request.AddCookie(&myCookie)
+			fmt.Println("Adding cookie")
+		default:
 		}
 
 		//send http request to "server"
@@ -64,7 +71,7 @@ func runCommand(command string, results chan<- string) {
 
 	//	commandParts := strings.Split(command, " ")
 
-	println(command)
+	fmt.Println(command)
 
 	results <- command + "done"
 

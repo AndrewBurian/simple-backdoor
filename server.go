@@ -2,7 +2,7 @@ package main
 
 import (
 	"fmt"
-	_ "net"
+	"net"
 
 	"github.com/google/gopacket"
 	"github.com/google/gopacket/layers"
@@ -11,7 +11,8 @@ import (
 
 func main() {
 	fmt.Println("Hello Go!")
-	listenForKnocks("any")
+	//listenForKnocks("wlp3s0")
+	serverWorker(net.ParseIP("192.168.1.46"))
 }
 
 func listenForKnocks(ifaceName string) {
