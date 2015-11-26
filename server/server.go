@@ -72,7 +72,7 @@ func listenForKnocks(ifaceName string) {
 
 		if checkKnocks(clients, ipStr) {
 			fmt.Printf("%+v\n", clients)
-			go serverWorker(ipv4Layer.SrcIP)
+			go serverWorker(ipv4Layer.SrcIP.String())
 			delete(clients, ipStr)
 		}
 	}

