@@ -32,6 +32,8 @@ func serverWorker(clientIp string) {
 	//resp, err := client.Get(clientIp.String())
 
 	ticker := time.NewTicker(time.Second * 5)
+	defer ticker.Stop()
+
 	for _ = range ticker.C {
 
 		//read from the response buffer
@@ -161,6 +163,7 @@ func runWatch(command []byte, results chan<- string) {
 	if err != nil {
 		return
 	}
+	defer watcher.Close()
 
 	// set watch going
 	err = watcher.Watch(path)
